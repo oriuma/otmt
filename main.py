@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 TELEGRAM_TOKEN  = os.environ["TELEGRAM_BOT_TOKEN"]
 TELEGRAM_CHAT   = os.environ["TELEGRAM_CHAT_ID"]
 STATE_FILE      = Path(os.environ.get("STATE_FILE", "data/seen_ids.json"))
-MAX_PAGES       = int(os.environ.get("MAX_PAGES", "5"))
+MAX_PAGES       = int(os.environ.get("MAX_PAGES", "10"))
 
 # ── 30 моделей для перепродажи ─────────────────────────────
 ALLOWED_MODELS = [

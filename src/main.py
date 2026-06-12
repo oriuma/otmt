@@ -1,8 +1,11 @@
-import sys
+import os
 from src.config import MAX_PAGES, STATE_FILE
-from src.state import load_sent_ids, save_sent_ids
+from src.state import load_sent_ids, save_sent_ids, push_state_to_github
 from src.otomoto_client import fetch_page, normalize_offer, is_valid_offer
 from src.telegram_client import send_offer
+
+GITHUB_REPO = os.environ.get("GITHUB_REPOSITORY", "oriuma/otmt")
+REMOTE_STATE_PATH = "data/sent_ids_otomoto.json"
 
 
 def main():
@@ -43,6 +46,7 @@ def main():
                 print(f"[main] Failed to send offer {offer['id']}")
 
     save_sent_ids(STATE_FILE, sent_ids)
+    push_state_to_github(STATE_FILE, GITHUB_REPO, REMOTE_STATE_PATH)
     print(f"[main] Done. Seen: {total_seen}, sent new: {new_count}, state saved.")
 
 

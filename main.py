@@ -7,12 +7,47 @@ TELEGRAM_CHAT   = os.environ["TELEGRAM_CHAT_ID"]
 STATE_FILE      = Path(os.environ.get("STATE_FILE", "data/seen_ids.json"))
 MAX_PAGES       = int(os.environ.get("MAX_PAGES", "5"))
 
-# ── фильтры поиска ──────────────────────────────────────────
+# ── 30 моделей для перепродажи (1800–3000 PLN) ──────────────
+# Otomoto принимает make через filter_enum_make, модель через filter_enum_model.
+# Проще всего — фильтровать по названию уже в Python после получения ответа.
+# Здесь список ключевых слов, которые ищем в title объявления (нижний регистр).
+ALLOWED_MODELS = [
+    "seat ibiza",
+    "opel astra",
+    "fiat punto",
+    "renault clio",
+    "volkswagen polo", "vw polo",
+    "skoda fabia", "škoda fabia",
+    "ford fiesta",
+    "opel corsa",
+    "peugeot 206",
+    "toyota yaris",
+    "honda civic",
+    "mazda 3",
+    "citroen c3", "citroën c3",
+    "hyundai getz",
+    "suzuki splash",
+    "daewoo matiz",
+    "volkswagen golf", "vw golf",
+    "audi a4",
+    "bmw 3", "bmw e46",
+    "mercedes c", "mercedes-benz c",
+    "ford focus",
+    "opel vectra",
+    "toyota corolla",
+    "skoda octavia", "škoda octavia",
+    "citroen c4", "citroën c4",
+    "mazda 5",
+    "peugeot 307",
+    "renault megane",
+    "volkswagen passat", "vw passat",
+    "audi a6",
+]
+
+# ── фильтры GraphQL (цена до 3000 PLN, легковые) ────────────
 SEARCH_FILTERS = [
-    {"name": "category_id",            "value": "29"},
-    {"name": "filter_float_price:to",  "value": "30000"},
-    # раскомментируй если нужна марка:
-    # {"name": "make_model_generation",  "value": "bmw"},
+    {"name": "category_id",            "value": "29"},   # легковые
+    {"name": "filter_float_price:to",  "value": "3000"},
 ]
 
 # ── заголовки ────────────────────────────────────────────────
@@ -45,6 +80,12 @@ def load_seen() -> set:
 def save_seen(seen: set):
     STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(list(seen)))
+
+
+def is_wanted_model(title: str) -> bool:
+    """Возвращает True если заголовок объявления содержит одну из нужных моделей."""
+    t = title.lower()
+    return any(model in t for model in ALLOWED_MODELS)
 
 
 def fetch_page(page: int) -> list:
@@ -124,6 +165,10 @@ def edge_to_post(edge: dict) -> dict | None:
     price    = node.get("price", {})
     location = node.get("location", {})
     params   = {p["key"]: p["displayValue"] for p in node.get("parameters", [])}
+
+    # фильтр по модели на стороне Python
+    if not is_wanted_model(title):
+        return None
 
     price_val  = price.get("amount", {}).get("value", "?")
     price_curr = price.get("amount", {}).get("currency", "PLN")

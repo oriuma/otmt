@@ -1,5 +1,6 @@
 import os, json, time, requests
 from pathlib import Path
+from datetime import datetime, timezone
 
 # ── конфиг ──────────────────────────────────────────────────
 TELEGRAM_TOKEN  = os.environ["TELEGRAM_BOT_TOKEN"]
@@ -7,10 +8,7 @@ TELEGRAM_CHAT   = os.environ["TELEGRAM_CHAT_ID"]
 STATE_FILE      = Path(os.environ.get("STATE_FILE", "data/seen_ids.json"))
 MAX_PAGES       = int(os.environ.get("MAX_PAGES", "5"))
 
-# ── 30 моделей для перепродажи (1800–3000 PLN) ──────────────
-# Otomoto принимает make через filter_enum_make, модель через filter_enum_model.
-# Проще всего — фильтровать по названию уже в Python после получения ответа.
-# Здесь список ключевых слов, которые ищем в title объявления (нижний регистр).
+# ── 30 моделей для перепродажи ─────────────────────────────
 ALLOWED_MODELS = [
     "seat ibiza",
     "opel astra",
@@ -44,9 +42,9 @@ ALLOWED_MODELS = [
     "audi a6",
 ]
 
-# ── фильтры GraphQL (цена до 3000 PLN, легковые) ────────────
+# ── фильтры GraphQL ─────────────────────────────────────────
 SEARCH_FILTERS = [
-    {"name": "category_id",            "value": "29"},   # легковые
+    {"name": "category_id",            "value": "29"},
     {"name": "filter_float_price:to",  "value": "3000"},
 ]
 
@@ -83,9 +81,36 @@ def save_seen(seen: set):
 
 
 def is_wanted_model(title: str) -> bool:
-    """Возвращает True если заголовок объявления содержит одну из нужных моделей."""
     t = title.lower()
     return any(model in t for model in ALLOWED_MODELS)
+
+
+def time_ago(created_at: str) -> str:
+    """Превращает ISO-дату в читаемый формат: '5 мин назад', '2 ч назад' и т..д."""
+    if not created_at:
+        return ""
+    try:
+        # формат приходит в виде '2024-06-12T19:30:00+02:00' или с Z
+        created_at = created_at.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(created_at)
+        now = datetime.now(timezone.utc)
+        diff = int((now - dt).total_seconds())
+
+        if diff < 60:
+            return f"{diff} сек назад"
+        elif diff < 3600:
+            m = diff // 60
+            return f"{m} мин назад"
+        elif diff < 86400:
+            h = diff // 3600
+            return f"{h} ч назад"
+        elif diff < 86400 * 7:
+            d = diff // 86400
+            return f"{d} дней назад"
+        else:
+            return dt.strftime("%d.%m.%Y")
+    except Exception:
+        return ""
 
 
 def fetch_page(page: int) -> list:
@@ -159,14 +184,14 @@ def edge_to_post(edge: dict) -> dict | None:
     if not node:
         return None
 
-    ad_id    = node.get("id", "")
-    title    = node.get("title", "Без названия")
-    url      = node.get("url", "")
-    price    = node.get("price", {})
-    location = node.get("location", {})
-    params   = {p["key"]: p["displayValue"] for p in node.get("parameters", [])}
+    ad_id      = node.get("id", "")
+    title      = node.get("title", "Без названия")
+    url        = node.get("url", "")
+    price      = node.get("price", {})
+    location   = node.get("location", {})
+    params     = {p["key"]: p["displayValue"] for p in node.get("parameters", [])}
+    created_at = node.get("createdAt") or node.get("created_at", "")
 
-    # фильтр по модели на стороне Python
     if not is_wanted_model(title):
         return None
 
@@ -191,6 +216,9 @@ def edge_to_post(edge: dict) -> dict | None:
     if gearbox:        detail_parts.append(f"⚙️ {gearbox}")
     if power:          detail_parts.append(f"🔧 {power}")
 
+    ago = time_ago(created_at)
+    ago_line = f"⏰ {ago}\n" if ago else ""
+
     return {
         "id": str(ad_id),
         "text": (
@@ -198,6 +226,7 @@ def edge_to_post(edge: dict) -> dict | None:
             f"💰 {price_str}\n"
             f"📍 {loc_str}\n"
             + ("\n".join(detail_parts) + "\n" if detail_parts else "")
+            + ago_line
             + f"\n🔗 [Смотреть объявление]({url})"
         ),
     }

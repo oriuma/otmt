@@ -42,10 +42,11 @@ ALLOWED_MODELS = [
     "audi a6",
 ]
 
-# ── фильтры GraphQL ─────────────────────────────────────────
+# ── фильтры GraphQL: цена до 3000 PLN, пробег до 300 000 km ──────
 SEARCH_FILTERS = [
-    {"name": "category_id",            "value": "29"},
-    {"name": "filter_float_price:to",  "value": "3000"},
+    {"name": "category_id",                "value": "29"},
+    {"name": "filter_float_price:to",      "value": "3000"},
+    {"name": "filter_float_mileage:to",    "value": "300000"},
 ]
 
 # ── заголовки ────────────────────────────────────────────────
@@ -86,11 +87,9 @@ def is_wanted_model(title: str) -> bool:
 
 
 def time_ago(created_at: str) -> str:
-    """Превращает ISO-дату в читаемый формат: '5 мин назад', '2 ч назад' и т..д."""
     if not created_at:
         return ""
     try:
-        # формат приходит в виде '2024-06-12T19:30:00+02:00' или с Z
         created_at = created_at.replace("Z", "+00:00")
         dt = datetime.fromisoformat(created_at)
         now = datetime.now(timezone.utc)
